@@ -49,6 +49,17 @@ body {
   box-shadow: 7px 7px 14px var(--shadow-dark), -7px -7px 14px var(--shadow-light);
 }
 
+.header-logo { width: 32px; height: 32px; }
+
+.eyebrow {
+  margin: 0 0 2px;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--accent);
+}
+
 h1 {
   font-size: 1.5rem;
   margin: 0;

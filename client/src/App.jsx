@@ -35,9 +35,12 @@ export default function App() {
   return (
     <div className="wrap">
       <div className="header">
-        <div className="header-icon">🔎</div>
+        <div className="header-icon">
+          <img src="/ZF_logo.svg" alt="Logo ZF" className="header-logo" />
+        </div>
         <div>
-          <h1>Buscador de Competencias del Personal</h1>
+          <p className="eyebrow">Smart Factory ESL</p>
+          <h1>Matriz de competencias</h1>
           {stats && <p className="sub">{stats.colaboradores} colaboradores · {stats.lineas} líneas/estaciones</p>}
         </div>
       </div>
@@ -54,7 +57,7 @@ export default function App() {
       </div>
 
       {error && <p className="hint">⚠️ {error}</p>}
-      {!q.trim() && <p className="hint">👋 Escribe un nombre o número de nómina para empezar.</p>}
+      {!q.trim() && <p className="hint">Escribe un nombre o número de nómina para empezar.</p>}
       {q.trim() && !error && results.length === 0 && <p className="hint">Sin resultados.</p>}
 
       <div className="results">

@@ -1,5 +1,6 @@
 """Genera server/data/employees.json a partir del Excel de matrices."""
 import sys, re, json, pathlib
+from datetime import date, datetime
 import openpyxl
 
 src = sys.argv[1] if len(sys.argv) > 1 else 'MATRICES_EN_INTRANET_CC_1.xlsm'
@@ -22,8 +23,8 @@ for name in wb.sheetnames:
     if name in SKIP: continue
     ws = wb[name]; hr = find_header(ws)
     if hr is None: continue
-    h = {c: str(ws.cell(hr, c).value).strip() for c in range(1, ws.max_column + 1)
-         if isinstance(ws.cell(hr, c).value, str) and ws.cell(hr, c).value.strip()}
+    header_vals = {c: ws.cell(hr, c).value for c in range(1, ws.max_column + 1)}
+    h = {c: v.strip() for c, v in header_vals.items() if isinstance(v, str) and v.strip()}
     col = lambda f: next((c for c, v in h.items() if f(v.lower())), None)
     idc, nc = col(lambda v: v in ('nómina', 'nomina')), col(lambda v: v == 'nombre')
     tc, lc, pc = col(lambda v: v == 'turno'), col(lambda v: v in LINEA), col(lambda v: v == 'puesto')
@@ -50,7 +51,7 @@ for r in range(2, ws.max_row + 1):
     i, n, f, c = (ws.cell(r, k).value for k in range(1, 5))
     if i is None or not c: continue
     e = emps.setdefault(str(i), {'n': n or f'Empleado #{i}', 'm': {}, 'c': []})
-    e['c'].append({'curso': str(c).strip(' "'), 'fecha': f.strftime('%Y-%m-%d') if hasattr(f, 'strftime') else None})
+    e['c'].append({'curso': str(c).strip(' "'), 'fecha': f.strftime('%Y-%m-%d') if isinstance(f, (datetime, date)) else None})
 
 for k, e in emps.items():
     if not isinstance(e['n'], str) or e['n'].startswith('#'):
