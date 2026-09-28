@@ -7,6 +7,11 @@ const levelNames = {
   4: 'Enseña',
 };
 const categoryNames = { A: 'Crítica', B: 'Media', C: 'Básica' };
+const categoryGroups = [
+  { key: 'C', label: 'Básicas' },
+  { key: 'A', label: 'Críticas' },
+  { key: 'B', label: 'Medias' },
+];
 
 function Dots({ nivel }) {
   return (
@@ -18,6 +23,18 @@ function Dots({ nivel }) {
         ))}
       </span>
     </span>
+  );
+}
+
+function Skill({ competency }) {
+  return (
+    <div className={`skill category-${(competency.categoria || 'B').toLowerCase()}`}>
+      <div className="skill-info">
+        <span>{competency.nombre}</span>
+        <span className="category-name">{categoryNames[competency.categoria] || categoryNames.B}</span>
+      </div>
+      <Dots nivel={competency.nivel} />
+    </div>
   );
 }
 
@@ -45,35 +62,50 @@ export default function Profile({ emp, onClose }) {
 
         <h3>Líneas / estaciones y competencias</h3>
         {emp.matrices.length === 0 && <p className="hint">Sin competencias registradas en las matrices.</p>}
-        {emp.matrices.map((m) => (
-          <div className="line-card" key={m.matriz}>
+        {emp.matrices.map((matrix) => {
+          const grouped = categoryGroups.reduce((groups, group) => {
+            groups[group.key] = matrix.competencias.filter(
+              (competency) => competency.tipo !== 'cantidad' && competency.categoria === group.key
+            );
+            return groups;
+          }, {});
+          const certifications = matrix.competencias.filter((competency) => competency.tipo === 'cantidad');
+
+          return (
+          <div className="line-card" key={matrix.matriz}>
             <div className="line-head">
               <div>
-                <strong>Línea: {m.linea || 'No registrada'}</strong>
-                <div className="matrix-name">Matriz: {m.matriz}</div>
+                <strong>Línea: {matrix.linea || 'No registrada'}</strong>
+                <div className="matrix-name">Matriz: {matrix.matriz}</div>
               </div>
-              <span className="result-meta">{[m.puesto, m.turno].filter(Boolean).join(' · ')}</span>
+              <span className="result-meta">{[matrix.puesto, matrix.turno].filter(Boolean).join(' · ')}</span>
             </div>
-            {m.competencias.map((c) => (
-              <div className={`skill category-${(c.categoria || 'B').toLowerCase()}`} key={c.nombre}>
-                {c.tipo === 'cantidad' ? (
-                  <>
-                    <span>{c.nombre}</span>
-                    <span className="certification-count">{c.cantidad}</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="skill-info">
-                      <span>{c.nombre}</span>
-                      <span className="category-name">{categoryNames[c.categoria] || categoryNames.B}</span>
+            <div className="category-groups">
+              {categoryGroups.map((group) => (
+                grouped[group.key].length > 0 && (
+                  <details className={`category-group category-group-${group.key.toLowerCase()}`} key={group.key}>
+                    <summary>
+                      <span>{group.label}</span>
+                      <span className="group-count">{grouped[group.key].length}</span>
+                    </summary>
+                    <div className="group-skills">
+                      {grouped[group.key].map((competency) => (
+                        <Skill competency={competency} key={competency.nombre} />
+                      ))}
                     </div>
-                    <Dots nivel={c.nivel} />
-                  </>
-                )}
+                  </details>
+                )
+              ))}
+            </div>
+            {certifications.map((certification) => (
+              <div className="skill certification" key={certification.nombre}>
+                <span>{certification.nombre}</span>
+                <span className="certification-count">{certification.cantidad}</span>
               </div>
             ))}
           </div>
-        ))}
+          );
+        })}
 
         <h3>Cursos tomados</h3>
         {emp.cursos.length === 0 && <p className="hint">Sin cursos registrados.</p>}
