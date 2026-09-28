@@ -18,7 +18,6 @@ export default function App() {
     api('/api/stats').then(setStats).catch(() => setError('No se pudo conectar con el servidor.'));
   }, []);
 
-  // Búsqueda con debounce
   useEffect(() => {
     const term = q.trim();
     if (!term) return setResults([]);

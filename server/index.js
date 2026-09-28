@@ -17,12 +17,21 @@ const employees = Object.entries(raw).map(([id, e]) => ({
   nombre: e.n,
   matrices: Object.entries(e.m)
     .map(([linea, m]) => ({
-      linea,
+      matriz: linea,
+      linea: m.linea ?? null,
       puesto: m.puesto ?? null,
       turno: m.turno ?? null,
-      competencias: Object.entries(m.skills).map(([nombre, nivel]) => ({ nombre, nivel })),
+      competencias: Object.entries(m.skills).map(([nombre, skill]) => (
+        skill?.tipo === 'cantidad'
+          ? { nombre, tipo: 'cantidad', cantidad: skill.cantidad }
+          : {
+              nombre,
+              nivel: typeof skill === 'object' ? skill.nivel : skill,
+              categoria: typeof skill === 'object' ? skill.categoria : null,
+            }
+      )),
     }))
-    .sort((a, b) => a.linea.localeCompare(b.linea)),
+    .sort((a, b) => (a.linea ?? '').localeCompare(b.linea ?? '')),
   cursos: e.c ?? [],
 }));
 
@@ -42,7 +51,7 @@ const app = express();
 app.get('/api/stats', (_req, res) => {
   res.json({
     colaboradores: employees.length,
-    lineas: new Set(employees.flatMap((e) => e.matrices.map((m) => m.linea))).size,
+    lineas: new Set(employees.flatMap((e) => e.matrices.map((m) => m.linea).filter(Boolean))).size,
   });
 });
 

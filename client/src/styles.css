@@ -213,6 +213,7 @@ h1 {
 
 .line-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .line-head strong { color: var(--navy); }
+.matrix-name { color: var(--muted); font-size: .75rem; margin-top: 3px; }
 
 .skill {
   display: flex;
@@ -223,8 +224,18 @@ h1 {
   border-top: 1px solid var(--border);
   font-size: .85rem;
 }
+.skill-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.category-name { font-size: .68rem; font-weight: 700; padding: 3px 7px; border-radius: 999px; white-space: nowrap; }
+.category-a { border-left: 4px solid #d92d20; padding-left: 8px; }
+.category-a .category-name { color: #b42318; background: rgba(217, 45, 32, .12); }
+.category-b .category-name { color: var(--muted); border: 1px solid var(--border); background: transparent; }
+.category-c { border-left: 4px solid #39a96b; padding-left: 8px; }
+.category-c .category-name { color: #087443; background: rgba(57, 169, 107, .14); }
+.certification-count { color: var(--navy); font-weight: 700; }
 
 .dots { display: flex; gap: 4px; flex-shrink: 0; }
+.skill-level { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.level-name { color: var(--navy-3); font-size: .75rem; font-weight: 700; min-width: 52px; text-align: right; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: #dbe4ef; box-shadow: inset 1px 1px 2px rgba(163,177,198,.6); }
 .dot.on { background: linear-gradient(145deg, var(--accent), var(--navy-2)); box-shadow: 0 0 6px rgba(47,128,237,.5); }
 

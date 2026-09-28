@@ -1,6 +1,7 @@
 """Genera server/data/employees.json a partir del Excel de matrices."""
 import sys, re, json, pathlib
 from datetime import date, datetime
+import unicodedata
 import openpyxl
 
 src = sys.argv[1] if len(sys.argv) > 1 else 'MATRICES_EN_INTRANET_CC_1.xlsm'
@@ -9,6 +10,7 @@ wb = openpyxl.load_workbook(src, data_only=True, keep_vba=True)
 
 SKIP = {'Menú','Documentación','Resumen','.','..','AVANCE MENSUAL','Hoja47','Base graficas','2X2 CDCE','Soldadura básica'}
 LINEA = {'línea en tress','linea en tress','línea','linea','línea tress','linea tress'}
+CATEGORY_BY_COLOR = {'FFFF0000': 'A', 'FF92D050': 'C'}
 
 def find_header(ws):
     for r in range(1, min(ws.max_row, 20) + 1):
@@ -17,6 +19,15 @@ def find_header(ws):
             if isinstance(v, str) and v.strip().lower() in ('nómina', 'nomina'):
                 return r
     return None
+
+def skill_info(cell, header):
+    normalized = unicodedata.normalize('NFD', header).encode('ascii', 'ignore').decode().lower()
+    if normalized == 'numero de certificaciones':
+        return header, None, True
+    match = re.search(r'\s*:\s*([ABC])\s*$', header, re.IGNORECASE)
+    category = match.group(1).upper() if match else CATEGORY_BY_COLOR.get(cell.fill.fgColor.rgb, 'B')
+    name = header[:match.start()].strip() if match else header
+    return name, category, False
 
 emps = {}
 for name in wb.sheetnames:
@@ -30,7 +41,8 @@ for name in wb.sheetnames:
     tc, lc, pc = col(lambda v: v == 'turno'), col(lambda v: v in LINEA), col(lambda v: v == 'puesto')
     if not idc or not nc: continue
     meta = {idc, nc, tc, lc, pc}
-    skills = [c for c in h if c not in meta and not re.fullmatch(r'\d+', h[c])]
+    skills = {c: skill_info(ws.cell(hr, c), h[c]) for c in h
+              if c not in meta and not re.fullmatch(r'\d+', h[c])}
     empty = 0; r = hr + 1
     while r <= ws.max_row and empty < 5:
         i, n = ws.cell(r, idc).value, ws.cell(r, nc).value
@@ -38,8 +50,10 @@ for name in wb.sheetnames:
         empty = 0
         if n and str(i) != '#N/A':
             e = emps.setdefault(str(i), {'n': n, 'm': {}, 'c': []})
-            sk = {h[c]: ws.cell(r, c).value for c in skills
-                  if isinstance(ws.cell(r, c).value, (int, float)) and ws.cell(r, c).value}
+            sk = {name: ({'tipo': 'cantidad', 'cantidad': ws.cell(r, c).value}
+                     if is_count else {'nivel': ws.cell(r, c).value, 'categoria': category})
+                for c, (name, category, is_count) in skills.items()
+                if isinstance(ws.cell(r, c).value, (int, float)) and ws.cell(r, c).value}
             if sk:
                 e['m'][name] = {'turno': ws.cell(r, tc).value if tc else None,
                                 'linea': ws.cell(r, lc).value if lc else None,
