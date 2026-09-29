@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Profile from './Profile.jsx';
+import QrScannerModal from './QrScannerModal.jsx';
 
 const api = (url) =>
   fetch(url).then((r) => {
@@ -13,6 +14,7 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     api('/api/stats').then(setStats).catch(() => setError('No se pudo conectar con el servidor.'));
@@ -31,6 +33,22 @@ export default function App() {
 
   const open = (id) => api(`/api/employees/${id}`).then(setSelected).catch(() => setError('Error al cargar el perfil.'));
 
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('emp');
+    if (id) open(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onScanned = (data) => {
+    setScanning(false);
+    try {
+      const id = new URL(data).searchParams.get('emp');
+      open(id || data);
+    } catch {
+      open(data);
+    }
+  };
+
   return (
     <div className="wrap">
       <div className="header">
@@ -44,19 +62,27 @@ export default function App() {
         </div>
       </div>
 
-      <div className="search-wrap">
-        <span className="search-icon">🔍</span>
-        <input
-          className="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre o número de nómina…"
-          autoFocus
-        />
+      <div className="search-row">
+        <div className="search-wrap">
+          <span className="search-icon">🔍</span>
+          <input
+            id="employee-search"
+            name="employeeSearch"
+            type="text"
+            className="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar por nombre o número de nómina…"
+            autoFocus
+          />
+        </div>
+        <button className="scan-button" onClick={() => setScanning(true)}>
+          <span aria-hidden="true">📷</span> Escanear QR
+        </button>
       </div>
 
       {error && <p className="hint">⚠️ {error}</p>}
-      {!q.trim() && <p className="hint">Escribe un nombre o número de nómina para empezar.</p>}
+      {!q.trim() && <p className="hint">Escribe un nombre o número de nómina, o escanea el QR de tu credencial para empezar.</p>}
       {q.trim() && !error && results.length === 0 && <p className="hint">Sin resultados.</p>}
 
       <div className="results">
@@ -72,6 +98,7 @@ export default function App() {
       </div>
 
       {selected && <Profile emp={selected} onClose={() => setSelected(null)} />}
+      {scanning && <QrScannerModal onResult={onScanned} onClose={() => setScanning(false)} />}
     </div>
   );
 }

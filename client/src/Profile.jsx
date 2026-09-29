@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import QrCode from './QrCode.jsx';
 
 const levelNames = {
   1: 'Opera',
@@ -59,6 +60,8 @@ export default function Profile({ emp, onClose }) {
           </div>
           <button className="close" onClick={onClose} aria-label="Cerrar">✕</button>
         </div>
+
+        <QrCode id={emp.id} nombre={emp.nombre} />
 
         <h3>Líneas / estaciones y competencias</h3>
         {emp.matrices.length === 0 && <p className="hint">Sin competencias registradas en las matrices.</p>}
