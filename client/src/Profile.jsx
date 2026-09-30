@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import QrCode from './QrCode.jsx';
 
 const levelNames = {
@@ -13,6 +13,12 @@ const categoryGroups = [
   { key: 'A', label: 'Críticas' },
   { key: 'B', label: 'Medias' },
 ];
+
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+const emptyCompetencia = () => ({ nombre: '', tipo: 'competencia', nivel: 1, categoria: 'B', cantidad: 0 });
+const emptyMatrix = () => ({ matriz: '', linea: '', puesto: '', turno: '', competencias: [] });
+const emptyCurso = () => ({ curso: '', fecha: '' });
+const emptyObjetivo = () => ({ id: newId(), descripcion: '', fecha: '', meta: '' });
 
 function Dots({ nivel }) {
   return (
@@ -39,7 +45,12 @@ function Skill({ competency }) {
   );
 }
 
-export default function Profile({ emp, onClose }) {
+export default function Profile({ emp, onClose, isSupervisor, token, onUpdated }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
@@ -50,6 +61,78 @@ export default function Profile({ emp, onClose }) {
     };
   }, [onClose]);
 
+  const startEditing = () => {
+    setSaveError('');
+    setDraft({
+      matrices: emp.matrices.map((m) => ({ ...m, competencias: m.competencias.map((c) => ({ ...c })) })),
+      cursos: emp.cursos.map((c) => ({ ...c })),
+      objetivos: (emp.objetivos || []).map((o) => ({ ...o })),
+    });
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setDraft(null);
+    setSaveError('');
+  };
+
+  const updateMatrix = (i, patch) =>
+    setDraft((d) => ({ ...d, matrices: d.matrices.map((m, idx) => (idx === i ? { ...m, ...patch } : m)) }));
+  const addMatrix = () => setDraft((d) => ({ ...d, matrices: [...d.matrices, emptyMatrix()] }));
+  const removeMatrix = (i) => setDraft((d) => ({ ...d, matrices: d.matrices.filter((_, idx) => idx !== i) }));
+
+  const updateCompetencia = (mi, ci, patch) =>
+    setDraft((d) => ({
+      ...d,
+      matrices: d.matrices.map((m, idx) =>
+        idx !== mi ? m : { ...m, competencias: m.competencias.map((c, j) => (j === ci ? { ...c, ...patch } : c)) }
+      ),
+    }));
+  const addCompetencia = (mi) =>
+    setDraft((d) => ({
+      ...d,
+      matrices: d.matrices.map((m, idx) => (idx !== mi ? m : { ...m, competencias: [...m.competencias, emptyCompetencia()] })),
+    }));
+  const removeCompetencia = (mi, ci) =>
+    setDraft((d) => ({
+      ...d,
+      matrices: d.matrices.map((m, idx) =>
+        idx !== mi ? m : { ...m, competencias: m.competencias.filter((_, j) => j !== ci) }
+      ),
+    }));
+
+  const updateCurso = (i, patch) =>
+    setDraft((d) => ({ ...d, cursos: d.cursos.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }));
+  const addCurso = () => setDraft((d) => ({ ...d, cursos: [...d.cursos, emptyCurso()] }));
+  const removeCurso = (i) => setDraft((d) => ({ ...d, cursos: d.cursos.filter((_, idx) => idx !== i) }));
+
+  const updateObjetivo = (i, patch) =>
+    setDraft((d) => ({ ...d, objetivos: d.objetivos.map((o, idx) => (idx === i ? { ...o, ...patch } : o)) }));
+  const addObjetivo = () => setDraft((d) => ({ ...d, objetivos: [...d.objetivos, emptyObjetivo()] }));
+  const removeObjetivo = (i) => setDraft((d) => ({ ...d, objetivos: d.objetivos.filter((_, idx) => idx !== i) }));
+
+  const save = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const res = await fetch(`/api/employees/${emp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(draft),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      onUpdated(updated);
+      setEditing(false);
+      setDraft(null);
+    } catch {
+      setSaveError('No se pudo guardar. Verifica tu sesión de supervisor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="panel" onClick={(e) => e.stopPropagation()}>
@@ -58,14 +141,31 @@ export default function Profile({ emp, onClose }) {
             <h2>{emp.nombre}</h2>
             <div className="result-meta">Nómina {emp.id}</div>
           </div>
-          <button className="close" onClick={onClose} aria-label="Cerrar">✕</button>
+          <div className="panel-actions">
+            {isSupervisor && !editing && (
+              <button className="edit-button" onClick={startEditing}>✏️ Editar</button>
+            )}
+            {isSupervisor && editing && (
+              <>
+                <button className="edit-button" onClick={save} disabled={saving}>
+                  {saving ? 'Guardando…' : '💾 Guardar'}
+                </button>
+                <button className="edit-button edit-button-cancel" onClick={cancelEditing} disabled={saving}>
+                  Cancelar
+                </button>
+              </>
+            )}
+            <button className="close" onClick={onClose} aria-label="Cerrar">✕</button>
+          </div>
         </div>
+
+        {saveError && <p className="hint">⚠️ {saveError}</p>}
 
         <QrCode id={emp.id} nombre={emp.nombre} />
 
         <h3>Líneas / estaciones y competencias</h3>
-        {emp.matrices.length === 0 && <p className="hint">Sin competencias registradas en las matrices.</p>}
-        {emp.matrices.map((matrix) => {
+        {!editing && emp.matrices.length === 0 && <p className="hint">Sin competencias registradas en las matrices.</p>}
+        {!editing && emp.matrices.map((matrix) => {
           const grouped = categoryGroups.reduce((groups, group) => {
             groups[group.key] = matrix.competencias.filter(
               (competency) => competency.tipo !== 'cantidad' && competency.categoria === group.key
@@ -110,15 +210,126 @@ export default function Profile({ emp, onClose }) {
           );
         })}
 
+        {editing && draft.matrices.map((matrix, mi) => (
+          <div className="line-card edit-card" key={mi}>
+            <div className="edit-grid">
+              <label>
+                Matriz
+                <input value={matrix.matriz} onChange={(e) => updateMatrix(mi, { matriz: e.target.value })} />
+              </label>
+              <label>
+                Línea
+                <input value={matrix.linea || ''} onChange={(e) => updateMatrix(mi, { linea: e.target.value })} />
+              </label>
+              <label>
+                Puesto
+                <input value={matrix.puesto || ''} onChange={(e) => updateMatrix(mi, { puesto: e.target.value })} />
+              </label>
+              <label>
+                Turno
+                <input value={matrix.turno || ''} onChange={(e) => updateMatrix(mi, { turno: e.target.value })} />
+              </label>
+            </div>
+
+            {matrix.competencias.map((c, ci) => (
+              <div className="edit-row" key={ci}>
+                <input
+                  className="edit-row-name"
+                  placeholder="Nombre de la competencia"
+                  value={c.nombre}
+                  onChange={(e) => updateCompetencia(mi, ci, { nombre: e.target.value })}
+                />
+                <select value={c.tipo} onChange={(e) => updateCompetencia(mi, ci, { tipo: e.target.value })}>
+                  <option value="competencia">Competencia</option>
+                  <option value="cantidad">Cantidad (certificaciones)</option>
+                </select>
+                {c.tipo === 'cantidad' ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={c.cantidad}
+                    onChange={(e) => updateCompetencia(mi, ci, { cantidad: e.target.value })}
+                  />
+                ) : (
+                  <>
+                    <select value={c.nivel} onChange={(e) => updateCompetencia(mi, ci, { nivel: Number(e.target.value) })}>
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>{n} · {levelNames[n]}</option>
+                      ))}
+                    </select>
+                    <select value={c.categoria} onChange={(e) => updateCompetencia(mi, ci, { categoria: e.target.value })}>
+                      <option value="A">Crítica</option>
+                      <option value="B">Media</option>
+                      <option value="C">Básica</option>
+                    </select>
+                  </>
+                )}
+                <button className="remove-button" onClick={() => removeCompetencia(mi, ci)} aria-label="Quitar">✕</button>
+              </div>
+            ))}
+            <div className="edit-actions">
+              <button className="add-button" onClick={() => addCompetencia(mi)}>+ Agregar competencia</button>
+              <button className="remove-button-text" onClick={() => removeMatrix(mi)}>Eliminar esta línea/matriz</button>
+            </div>
+          </div>
+        ))}
+        {editing && <button className="add-button" onClick={addMatrix}>+ Agregar línea/matriz</button>}
+
         <h3>Cursos tomados</h3>
-        {emp.cursos.length === 0 && <p className="hint">Sin cursos registrados.</p>}
-        {emp.cursos.map((c, i) => (
+        {!editing && emp.cursos.length === 0 && <p className="hint">Sin cursos registrados.</p>}
+        {!editing && emp.cursos.map((c, i) => (
           <div className="course" key={i}>
             <span>{c.curso}</span>
             <span className="result-meta">{c.fecha}</span>
           </div>
         ))}
+        {editing && draft.cursos.map((c, i) => (
+          <div className="edit-row" key={i}>
+            <input
+              className="edit-row-name"
+              placeholder="Nombre del curso"
+              value={c.curso}
+              onChange={(e) => updateCurso(i, { curso: e.target.value })}
+            />
+            <input type="date" value={c.fecha || ''} onChange={(e) => updateCurso(i, { fecha: e.target.value })} />
+            <button className="remove-button" onClick={() => removeCurso(i)} aria-label="Quitar">✕</button>
+          </div>
+        ))}
+        {editing && <button className="add-button" onClick={addCurso}>+ Agregar curso</button>}
+
+        <h3>Objetivos</h3>
+        {!editing && (!emp.objetivos || emp.objetivos.length === 0) && (
+          <p className="hint">Sin objetivos registrados para este colaborador.</p>
+        )}
+        {!editing && (emp.objetivos || []).map((o) => (
+          <div className="objective" key={o.id}>
+            <div className="objective-desc">{o.descripcion}</div>
+            <div className="objective-meta">
+              {o.meta && <span className="objective-meta-item">🎯 {o.meta}</span>}
+              {o.fecha && <span className="objective-meta-item">📅 {o.fecha}</span>}
+            </div>
+          </div>
+        ))}
+        {editing && draft.objetivos.map((o, i) => (
+          <div className="edit-row edit-row-objective" key={o.id}>
+            <input
+              className="edit-row-name"
+              placeholder="Descripción del objetivo"
+              value={o.descripcion}
+              onChange={(e) => updateObjetivo(i, { descripcion: e.target.value })}
+            />
+            <input
+              placeholder="Meta (p. ej. Nivel Prepara en soldadura)"
+              value={o.meta || ''}
+              onChange={(e) => updateObjetivo(i, { meta: e.target.value })}
+            />
+            <input type="date" value={o.fecha || ''} onChange={(e) => updateObjetivo(i, { fecha: e.target.value })} />
+            <button className="remove-button" onClick={() => removeObjetivo(i)} aria-label="Quitar">✕</button>
+          </div>
+        ))}
+        {editing && <button className="add-button" onClick={addObjetivo}>+ Agregar objetivo</button>}
       </div>
     </div>
   );
 }
+

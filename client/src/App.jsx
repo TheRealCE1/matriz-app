@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import Profile from './Profile.jsx';
 import QrScannerModal from './QrScannerModal.jsx';
+import SupervisorLogin from './SupervisorLogin.jsx';
+import { getSession, clearSession } from './auth.js';
 
 const api = (url) =>
   fetch(url).then((r) => {
@@ -15,6 +17,8 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [session, setSession] = useState(getSession());
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     api('/api/stats').then(setStats).catch(() => setError('No se pudo conectar con el servidor.'));
@@ -36,7 +40,6 @@ export default function App() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('emp');
     if (id) open(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onScanned = (data) => {
@@ -47,6 +50,11 @@ export default function App() {
     } catch {
       open(data);
     }
+  };
+
+  const logout = () => {
+    clearSession();
+    setSession(null);
   };
 
   return (
@@ -60,6 +68,15 @@ export default function App() {
           <h1>Matriz de competencias</h1>
           {stats && <p className="sub">{stats.colaboradores} colaboradores · {stats.lineas} líneas/estaciones</p>}
         </div>
+        {session ? (
+          <button className="supervisor-badge" onClick={logout} title="Cerrar sesión de supervisor">
+            🛡️ Supervisor · Salir
+          </button>
+        ) : (
+          <button className="supervisor-badge supervisor-badge-off" onClick={() => setLoggingIn(true)}>
+            🔒 Modo supervisor
+          </button>
+        )}
       </div>
 
       <div className="search-row">
@@ -97,8 +114,25 @@ export default function App() {
         ))}
       </div>
 
-      {selected && <Profile emp={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <Profile
+          emp={selected}
+          onClose={() => setSelected(null)}
+          isSupervisor={!!session}
+          token={session?.token}
+          onUpdated={setSelected}
+        />
+      )}
       {scanning && <QrScannerModal onResult={onScanned} onClose={() => setScanning(false)} />}
+      {loggingIn && (
+        <SupervisorLogin
+          onClose={() => setLoggingIn(false)}
+          onLoggedIn={() => {
+            setSession(getSession());
+            setLoggingIn(false);
+          }}
+        />
+      )}
     </div>
   );
 }
