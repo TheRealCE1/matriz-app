@@ -9,6 +9,5 @@
   },
   "dependencies": {
     "express": "^4.21.0",
-    "matriz-habilidades": "file:.."
   }
 }
