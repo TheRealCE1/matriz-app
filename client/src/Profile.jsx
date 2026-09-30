@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import QrCode from './QrCode.jsx';
+import { useEffect, useMemo, useState, lazy, memo, Suspense } from 'react';
+
+// Se carga bajo demanda: la librería de generación de QR no es necesaria hasta abrir un perfil.
+const QrCode = lazy(() => import('./QrCode.jsx'));
 
 const levelNames = {
   1: 'Opera',
@@ -20,7 +22,7 @@ const emptyMatrix = () => ({ matriz: '', linea: '', puesto: '', turno: '', compe
 const emptyCurso = () => ({ curso: '', fecha: '' });
 const emptyObjetivo = () => ({ id: newId(), descripcion: '', fecha: '', meta: '' });
 
-function Dots({ nivel }) {
+const Dots = memo(function Dots({ nivel }) {
   return (
     <span className="skill-level" title={`Nivel ${nivel}: ${levelNames[nivel] || 'Sin clasificar'}`}>
       <span className="level-name">{levelNames[nivel] || `Nivel ${nivel}`}</span>
@@ -31,9 +33,9 @@ function Dots({ nivel }) {
       </span>
     </span>
   );
-}
+});
 
-function Skill({ competency }) {
+const Skill = memo(function Skill({ competency }) {
   return (
     <div className={`skill category-${(competency.categoria || 'B').toLowerCase()}`}>
       <div className="skill-info">
@@ -43,13 +45,27 @@ function Skill({ competency }) {
       <Dots nivel={competency.nivel} />
     </div>
   );
-}
+});
 
 export default function Profile({ emp, onClose, isSupervisor, token, onUpdated }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  const matrixGroups = useMemo(
+    () => emp.matrices.map((matrix) => {
+      const grouped = categoryGroups.reduce((groups, group) => {
+        groups[group.key] = matrix.competencias.filter(
+          (competency) => competency.tipo !== 'cantidad' && competency.categoria === group.key
+        );
+        return groups;
+      }, {});
+      const certifications = matrix.competencias.filter((competency) => competency.tipo === 'cantidad');
+      return { matrix, grouped, certifications };
+    }),
+    [emp.matrices]
+  );
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
@@ -161,19 +177,13 @@ export default function Profile({ emp, onClose, isSupervisor, token, onUpdated }
 
         {saveError && <p className="hint">⚠️ {saveError}</p>}
 
-        <QrCode id={emp.id} nombre={emp.nombre} />
+        <Suspense fallback={<div className="qr-card qr-card-loading">Cargando código QR…</div>}>
+          <QrCode id={emp.id} nombre={emp.nombre} />
+        </Suspense>
 
         <h3>Líneas / estaciones y competencias</h3>
-        {!editing && emp.matrices.length === 0 && <p className="hint">Sin competencias registradas en las matrices.</p>}
-        {!editing && emp.matrices.map((matrix) => {
-          const grouped = categoryGroups.reduce((groups, group) => {
-            groups[group.key] = matrix.competencias.filter(
-              (competency) => competency.tipo !== 'cantidad' && competency.categoria === group.key
-            );
-            return groups;
-          }, {});
-          const certifications = matrix.competencias.filter((competency) => competency.tipo === 'cantidad');
-
+        {!editing && matrixGroups.length === 0 && <p className="hint">Sin competencias registradas en las matrices.</p>}
+        {!editing && matrixGroups.map(({ matrix, grouped, certifications }) => {
           return (
           <div className="line-card" key={matrix.matriz}>
             <div className="line-head">
@@ -239,10 +249,6 @@ export default function Profile({ emp, onClose, isSupervisor, token, onUpdated }
                   value={c.nombre}
                   onChange={(e) => updateCompetencia(mi, ci, { nombre: e.target.value })}
                 />
-                <select value={c.tipo} onChange={(e) => updateCompetencia(mi, ci, { tipo: e.target.value })}>
-                  <option value="competencia">Competencia</option>
-                  <option value="cantidad">Cantidad (certificaciones)</option>
-                </select>
                 {c.tipo === 'cantidad' ? (
                   <input
                     type="number"

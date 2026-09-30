@@ -180,6 +180,7 @@ h1 {
   box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
 }
 .qr-canvas { border-radius: 10px; flex-shrink: 0; }
+.qr-card-loading { color: var(--muted); font-size: .85rem; justify-content: center; min-height: 176px; }
 .qr-info { display: flex; flex-direction: column; gap: 4px; }
 .qr-download {
   align-self: flex-start;

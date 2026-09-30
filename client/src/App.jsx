@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import Profile from './Profile.jsx';
-import QrScannerModal from './QrScannerModal.jsx';
-import SupervisorLogin from './SupervisorLogin.jsx';
 import { getSession, clearSession } from './auth.js';
+
+const QrScannerModal = lazy(() => import('./QrScannerModal.jsx'));
+const SupervisorLogin = lazy(() => import('./SupervisorLogin.jsx'));
 
 const api = (url) =>
   fetch(url).then((r) => {
@@ -19,6 +20,7 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [session, setSession] = useState(getSession());
   const [loggingIn, setLoggingIn] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   useEffect(() => {
     api('/api/stats').then(setStats).catch(() => setError('No se pudo conectar con el servidor.'));
@@ -35,7 +37,13 @@ export default function App() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const open = (id) => api(`/api/employees/${id}`).then(setSelected).catch(() => setError('Error al cargar el perfil.'));
+  const open = (id) => {
+    setLoadingProfile(true);
+    api(`/api/employees/${id}`)
+      .then(setSelected)
+      .catch(() => setError('Error al cargar el perfil.'))
+      .finally(() => setLoadingProfile(false));
+  };
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('emp');
@@ -98,9 +106,12 @@ export default function App() {
         </button>
       </div>
 
-      {error && <p className="hint">⚠️ {error}</p>}
-      {!q.trim() && <p className="hint">Escribe un nombre o número de nómina, o escanea el QR de tu credencial para empezar.</p>}
-      {q.trim() && !error && results.length === 0 && <p className="hint">Sin resultados.</p>}
+      <div aria-live="polite">
+        {error && <p className="hint">⚠️ {error}</p>}
+        {loadingProfile && <p className="hint">Cargando perfil…</p>}
+        {!q.trim() && <p className="hint">Escribe un nombre o número de nómina, o escanea el QR de tu credencial para empezar.</p>}
+        {q.trim() && !error && results.length === 0 && <p className="hint">Sin resultados.</p>}
+      </div>
 
       <div className="results">
         {results.map((r) => (
@@ -123,16 +134,18 @@ export default function App() {
           onUpdated={setSelected}
         />
       )}
-      {scanning && <QrScannerModal onResult={onScanned} onClose={() => setScanning(false)} />}
-      {loggingIn && (
-        <SupervisorLogin
-          onClose={() => setLoggingIn(false)}
-          onLoggedIn={() => {
-            setSession(getSession());
-            setLoggingIn(false);
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {scanning && <QrScannerModal onResult={onScanned} onClose={() => setScanning(false)} />}
+        {loggingIn && (
+          <SupervisorLogin
+            onClose={() => setLoggingIn(false)}
+            onLoggedIn={() => {
+              setSession(getSession());
+              setLoggingIn(false);
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
